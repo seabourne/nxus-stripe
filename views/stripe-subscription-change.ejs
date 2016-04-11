@@ -1,0 +1,11 @@
+<form action="/profile/subscription/save" method="POST">
+  <p>Select a new subscription. We will prorate the cost of the new subscription and bill (or refund) you the difference.</p>
+<div class="form-group">
+<select name="plan" class="form-control">
+  <% plans.forEach(function(plan) { %>
+    <option value="<%= plan.stripeId %>" <%= req.subscription.customer.subscriptions.data[0].plan.id == plan.stripeId ? 'selected="true"' : "" %>><%= plan.name %> @ <%= plan.price %></option>
+  <% }) %>
+</select>
+</div>
+    <p><button type='submit' class="btn btn-primary">Change Plan</button></p>
+</form>
