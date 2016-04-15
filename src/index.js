@@ -2,7 +2,7 @@
 * @Author: mike
 * @Date:   2016-04-10 11:33:11
 * @Last Modified 2016-04-15
-* @Last Modified time: 2016-04-15 07:04:56
+* @Last Modified time: 2016-04-15 07:18:37
 */
 
 'use strict';
@@ -271,7 +271,7 @@ export default class Stripe {
         })
       })
     }).then((subscription) => {
-      var fromEmail = this.app.config.users && this.app.config.users.forgotPasswordEmail ? this.app.config.users.forgotPasswordEmail : "noreply@" + (this.app.config.mailer && this.app.config.mailer.emailDomain || this.app.config.baseUrl);
+      var fromEmail = "noreply@" + this.app.config.host;
       var link = "http://" + this.app.config.baseUrl + "/profile";
       var siteName = this.app.config.siteName
       return this.app.get('templater').render("stripe-subscription-success", {user, subscription, link, siteName}).then((message) => {
