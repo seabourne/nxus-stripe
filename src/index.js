@@ -1,8 +1,8 @@
 /*
 * @Author: mike
 * @Date:   2016-04-10 11:33:11
-* @Last Modified 2016-04-14
-* @Last Modified time: 2016-04-14 20:57:57
+* @Last Modified 2016-04-15
+* @Last Modified time: 2016-04-15 07:04:56
 */
 
 'use strict';
@@ -138,10 +138,9 @@ export default class Stripe {
     }).then((u) => {
       if(!u) return res.status(404).send()
       user = u
-      return this.stripe.customers.update(req.subscription.customer.id, {
-        source,
-        coupon
-      }).then((customer) => {
+      let opts = {source}
+      if(coupon && coupon.length != '') opts.coupon = coupon
+      return this.stripe.customers.update(req.subscription.customer.id, opts).then((customer) => {
         let subscription = {customer}
         return models.Subscription.update({user: user.id}, subscription)
       });
@@ -260,12 +259,12 @@ export default class Stripe {
     }).then((u) => {
       if(!u) return res.status(404).send()
       user = u
-      return this.stripe.customers.create({
-        source,
+      let opts = {source,
         plan,
-        email: user.email,
-        coupon,
-      }).then((customer) => {
+        email: user.email
+      }
+      if(coupon && coupon.length != '') opts.coupon = coupon
+      return this.stripe.customers.create(opts).then((customer) => {
         let subscription = {enabled: true, status: 'active', customer, plan, user: user.id}
         return models.Subscription.createOrUpdate({user: user.id}, subscription).then(() => {
           return subscription
