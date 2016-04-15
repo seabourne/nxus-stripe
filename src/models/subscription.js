@@ -1,8 +1,8 @@
 /*
 * @Author: mike
 * @Date:   2016-04-10 11:33:23
-* @Last Modified 2016-04-10
-* @Last Modified time: 2016-04-10 16:09:47
+* @Last Modified 2016-04-12
+* @Last Modified time: 2016-04-12 14:06:31
 */
 
 'use strict';
@@ -16,6 +16,7 @@ export default BaseModel.extend({
     user: {
       model: 'user'
     },
+    plan: 'string',
     customer: {
       type: 'json',
       defaultsTo: {}

@@ -1,0 +1,12 @@
+<h2>Current Payment Method</h2>
+<% if(req.subscription) { %>
+<% if(req.subscription.enabled) { %>
+<p>Your subscription will renew for $<%= req.subscription.customer.subscriptions.data[0].plan.amount/100 %> on <%= moment.unix(req.subscription.customer.subscriptions.data[0].current_period_end).format("LL") %> using the <%= req.subscription.customer.sources.data[0].brand %> card ending in <%= req.subscription.customer.sources.data[0].last4 %>.</p>
+<% } else { %>
+<p>You don't have an active subscription. Your previous subscription was purchased using the <%= req.subscription.customer.sources.data[0].brand %> card ending in <%= req.subscription.customer.sources.data[0].last4 %>.</p>
+<% } %>
+<h2>Save New Payment Method</h2>
+<%- render('stripe-payment-form', {action: '/profile/billing/update/'+req.user.id, stripe}) %>
+<% } %>
+
+

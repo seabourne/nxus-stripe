@@ -8,25 +8,28 @@
     <span class="payment-errors"></span>
     <div class="form-group">
         <label for="">Card Number</label>
-        <input type="text" class="form-control" size="20" data-stripe="number"/>
+        <input type="text" class="form-control" size="20" data-stripe="number" required />
     </div>
     <div class="form-group">
         <label for="">CVC</label>
-        <input type="text" class="form-control" size="4" data-stripe="cvc"/>
+        <input type="text" class="form-control" size="4" data-stripe="cvc" required/>
     </div>
 
   <div class="form-group">
     <label>Expiration (MM/YYYY)</label>
-    <input type="text" size="2" data-stripe="exp-month"/>
+    <input type="text" size="2" data-stripe="exp-month" required/>
     <span> / </span>
-    <input type="text" size="4" data-stripe="exp-year"/>
+    <input type="text" size="4" data-stripe="exp-year" required/>
   </div>
-
+      <div class="form-group">
+        <label for="">Coupon code? <small>If you have a coupon code, enter it here.</small></label>
+        <input type="text" class="form-control" name="coupon" />
+    </div>
     <div class="row">
         <div class="col-md-8">
         </div>
         <div class="col-md-4">
-            <button type="submit" class="btn btn-ar btn-primary pull-right">Submit</button>
+            <button type="submit" class="btn btn-ar btn-primary pull-right">Save</button>
         </div>
     </div>
 </form>
@@ -39,7 +42,9 @@
 
       if (response.error) {
         // Show the errors on the form
-        $form.find('.payment-errors').text(response.error.message);
+        $form.find('.payment-errors').html('<div class="alert alert-danger"> \
+                    <button type="button" class="close" data-dismiss="alert" aria-hidden="true">×</button> \
+                   <strong><i class="fa fa-times"></i> Error!</strong> '+response.error.message+'</div>');
         $form.find('button').prop('disabled', false);
       } else {
         // response contains id and card, which contains additional card details

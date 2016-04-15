@@ -1,0 +1,14 @@
+<div class="row">
+  <div class="col-md-12">
+    <% if(req.subscription && req.subscription.enabled) { %>
+    <p>You are currently on the <%= req.subscription.customer.subscriptions.data[0].plan.name %> plan. <a href="/profile/subscription/change" class="">Change Plan</a></p>
+    <p><a href="/profile/subscription/cancel" class="btn btn-danger">Cancel Subscription</a></p>
+    <% } else { %>
+    <% if (req.subscription.lastError) { %>
+      <p><%= req.subscription.lastError %>
+      <% } else { %>
+      <p>You don't currently have an active subscription.  
+        <% } %><a href="/#pricing">Click here to sign up</a> for a new plan.</a>
+    <% } %>
+  </div>
+</div>

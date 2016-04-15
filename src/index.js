@@ -1,14 +1,13 @@
 /*
 * @Author: mike
 * @Date:   2016-04-10 11:33:11
-* @Last Modified 2016-04-10
-* @Last Modified time: 2016-04-10 20:18:29
+* @Last Modified 2016-04-14
+* @Last Modified time: 2016-04-14 20:57:57
 */
 
 'use strict';
 
 import Subscription from './models/subscription.js'
-import Plan from './models/plan.js'
 
 import stripe from 'stripe'
 
@@ -32,13 +31,12 @@ export default class Stripe {
     this._setupStripe()
 
     app.get('stripe').use(this)
-    .respond('subscribe')
-    .respond('updateSubscription')
-    .respond('cancelSubscription')
   }
 
   _setupTemplates() {
-    this.app.get('templater').templateDir('ejs', __dirname+"/../views")
+    this.app.get('templater').templateDir(__dirname+"/../templates/pages", this.opts.template)
+    this.app.get('templater').templateDir(__dirname+"/../templates/partials")
+    this.app.get('templater').templateDir(__dirname+"/../templates/emails")
   }
 
   _setupStripe() {
@@ -47,8 +45,6 @@ export default class Stripe {
 
   _setupModels() {
     this.app.get('storage').model(Subscription)
-    this.app.get('storage').model(Plan)
-    this.app.get('admin-ui').adminModel('plan')
     this.app.get('storage').on('model.create.user', (identity, record) => {
       this.app.get('storage').getModel('subscription').then((Subscription) => {
         return Subscription.create({user: record})
@@ -58,7 +54,7 @@ export default class Stripe {
 
   _setupMiddleware() {
     this.app.get('router').middleware((req, res, next) => {
-      if(!req.user || req.subscription) return next()
+      if(!req.user) return next()
       return this.app.get('storage').getModel('subscription').then((Subscription) => {
         return Subscription.findOne().where({user: req.user.id}).then((subscription) => {
           if(subscription) req.subscription = subscription
@@ -74,22 +70,65 @@ export default class Stripe {
     router.route("/payment/:id", this._payment.bind(this))
     router.route("/profile/subscription", this._subscription.bind(this))
     router.route("/profile/subscription/change", this._subscriptionChange.bind(this))
-    router.route("post", "/profile/subscription/save", this._subscriptionSave.bind(this))
     router.route("/profile/subscription/cancel", this._subscriptionCancel.bind(this))
+    router.route("/profile/billing", this._billing.bind(this))
+    router.route("post", "/profile/subscription/save", this._subscriptionSave.bind(this))
     router.route("post", "/profile/subscription/cancel", this._subscriptionCancelSave.bind(this))
     router.route("post", "/profile/billing/update/:id", this._billingUpdate.bind(this))
-    router.route("/profile/billing", this._billing.bind(this))
+
+    router.route('post', '/stripe/webhook', this._processWebhook.bind(this))
+  }
+
+  _processWebhook(req, res) {
+    var promise
+    let eventRaw = req.body
+    this.app.log.debug('Strip Webhook received', eventRaw)
+    if(eventRaw.livemode)
+      promise = this.stripe.events.retrieve(eventRaw.id)
+    else
+      promise = Promise.resolve(eventRaw)
+    
+    promise.then((event) => {
+      res.send(200)
+      if(event.type == "invoice.payment_failed") this._processPaymentFailure(event.data.object.customer)
+      if(event.type == "invoice.payment_succeeded") this._processPaymentSuccess(event.data.object.customer)
+      if(event.type == "customer.subscription.deleted") this._processPaymentFailure(event.data.object.customer)
+    })
+  }
+
+  _processPaymentFailure(customerId) {
+    console.log('customerId', customerId)
+    this.app.get('storage').getModel('subscription').then((Subscription) => {
+      Subscription.findOne().where({'customer.id': customerId}).then((subscription) => {
+        subscription.enabled = false
+        subscription.status = 'failed'
+        subscription.lastError = "You're account has been suspended because of payment issues. Please choose a new subscription to continue to continue using GovTraq."
+        subscription.save()
+      })
+    })
+  }
+
+  _processPaymentSuccess(customerId) {
+    console.log('customerId', customerId)
+    this.app.get('storage').getModel('subscription').then((Subscription) => {
+      Subscription.findOne().where({'customer.id': customerId}).then((subscription) => {
+        subscription.enabled = true
+        subscription.status = 'active'
+        subscription.lastError = null
+        subscription.save()
+      })
+    })
   }
 
   _billing(req, res) {
-    return this.app.get('templater').renderPartial('stripe-billing', this.opts.template, {title: 'Billing', req, stripe: this.opts}).then(res.send.bind(res))
+    return this.app.get('templater').render('stripe-billing', {title: 'Billing', req, stripe: this.opts}).then(res.send.bind(res))
   }
 
   _billingUpdate(req, res) {
-    console.log('billing update')
-    let stripeToken = req.body.stripeToken
+    let source = req.body.stripeToken
     let plan = req.body.plan
     let id = req.param('id')
+    let coupon = req.param('coupon')
     var user = null
     var models = {}
     return this.app.get('storage').getModel(['user', 'subscription']).spread((User, Subscription) => {
@@ -97,11 +136,11 @@ export default class Stripe {
       models.Subscription = Subscription
       return User.findOne(id)
     }).then((u) => {
-      console.log('u', u)
       if(!u) return res.status(404).send()
       user = u
       return this.stripe.customers.update(req.subscription.customer.id, {
-        source: stripeToken
+        source,
+        coupon
       }).then((customer) => {
         let subscription = {customer}
         return models.Subscription.update({user: user.id}, subscription)
@@ -111,21 +150,22 @@ export default class Stripe {
         req.flash('info', 'Billing method updated successfully.')
         res.redirect('/profile/billing')
       })
+    }).catch((e) => {
+      req.flash('error', e.message)
+      res.redirect('/profile/billing')
     })
   }
 
   _subscriptionChange(req, res) {
-    return this.app.get('storage').getModel('plan').then((Plan) => {
-      return Plan.find().where()
-    }).then((plans) => {
-      return this.app.get('templater').renderPartial('stripe-subscription-change', this.opts.template, {plans, title: 'Change Subscription', req})
+    return this.stripe.plans.list().then((plans) => {
+      plans = plans.data
+      return this.app.get('templater').render('stripe-subscription-change', {plans, title: 'Change Subscription', req})
     }).then(res.send.bind(res))
   }
 
   _subscriptionSave(req, res) {
     let stripeToken = req.body.stripeToken
     let plan = req.body.plan
-    console.log('subscription change', plan)
     let id = req.user.id
     var user = null
     var models = {}
@@ -134,7 +174,6 @@ export default class Stripe {
       models.Subscription = Subscription
       return User.findOne(id)
     }).then((u) => {
-      console.log('u', u)
       if(!u) return res.status(404).send()
       user = u
       return this.stripe.customers.updateSubscription(req.subscription.customer.id, req.subscription.customer.subscriptions.data[0].id, {
@@ -142,6 +181,7 @@ export default class Stripe {
       }).then((sub) => {
         let subscription = req.subscription
         subscription.customer.subscriptions.data[0] = sub
+        subscription.plan = plan
         return models.Subscription.update({user: user.id}, subscription)
       });
     }).then(() => {
@@ -154,7 +194,6 @@ export default class Stripe {
   }
 
   _subscriptionCancelSave(req, res) {
-    console.log('subscription change')
     let stripeToken = req.body.stripeToken
     let plan = req.body.plan
     let id = req.user.id
@@ -165,7 +204,6 @@ export default class Stripe {
       models.Subscription = Subscription
       return User.findOne(id)
     }).then((u) => {
-      console.log('u', u)
       if(!u) return res.status(404).send()
       user = u
       return this.stripe.customers.cancelSubscription(req.subscription.customer.id, req.subscription.customer.subscriptions.data[0].id).then((sub) => {
@@ -173,25 +211,21 @@ export default class Stripe {
         subscription.customer.subscriptions.data[0] = sub
         subscription.enabled = false
         subscription.status = 'cancelled'
-        return models.Subscription.update({user: user.id}, subscription).then(() => {
-          user.enabled = false
-          user.verified = false
-          user.save()
-        })
+        return models.Subscription.update({user: user.id}, subscription)
       });
     }).then(() => {
       req.subscription = null
       req.flash('info', 'Subscription cancelled successfully.')
-      res.redirect('/logout')
+      res.redirect('/profile')
     })
   }
 
   _subscriptionCancel(req, res) {
-    return this.app.get('templater').renderPartial('stripe-subscription-cancel', this.opts.template, {title: 'Cancel Subscription', req}).then(res.send.bind(res))
+    return this.app.get('templater').render('stripe-subscription-cancel', {title: 'Cancel Subscription', req}).then(res.send.bind(res))
   }
 
   _subscription(req, res) {
-    return this.app.get('templater').renderPartial('stripe-subscription', this.opts.template, {req, title: 'Subscription'}).then(res.send.bind(res))
+    return this.app.get('templater').render('stripe-subscription', {req, title: 'Subscription'}).then(res.send.bind(res))
   }
 
   _payment(req, res) {
@@ -208,12 +242,13 @@ export default class Stripe {
         plan,
         title: 'Enter Payment Information'
       }
-      return this.app.get('templater').renderPartial("stripe-payment", this.opts.template, opts).then(res.send.bind(res))
+      return this.app.get('templater').render("stripe-payment", opts).then(res.send.bind(res))
     })
   }
 
   _process(req, res) {
-    let stripeToken = req.body.stripeToken
+    let source = req.body.stripeToken
+    let coupon = req.body.coupon
     let plan = req.body.plan
     let id = req.param('id')
     var user = null
@@ -226,34 +261,31 @@ export default class Stripe {
       if(!u) return res.status(404).send()
       user = u
       return this.stripe.customers.create({
-        source: stripeToken,
+        source,
         plan,
-        email: user.email
+        email: user.email,
+        coupon,
       }).then((customer) => {
-        let subscription = {enabled: true, status: 'active', customer}
-        return models.Subscription.update({user: user.id}, subscription).then(() => {
-          user.enabled = true
-          user.verified = true
-          user.save()
+        let subscription = {enabled: true, status: 'active', customer, plan, user: user.id}
+        return models.Subscription.createOrUpdate({user: user.id}, subscription).then(() => {
+          return subscription
         })
-      });
+      })
+    }).then((subscription) => {
+      var fromEmail = this.app.config.users && this.app.config.users.forgotPasswordEmail ? this.app.config.users.forgotPasswordEmail : "noreply@" + (this.app.config.mailer && this.app.config.mailer.emailDomain || this.app.config.baseUrl);
+      var link = "http://" + this.app.config.baseUrl + "/profile";
+      var siteName = this.app.config.siteName
+      return this.app.get('templater').render("stripe-subscription-success", {user, subscription, link, siteName}).then((message) => {
+        return this.app.get('mailer').send(user.email, fromEmail, 'Your '+siteName+' Subscription', message, {html: message})
+      })
     }).then(() => {
       return req.login(user, () => {
-        req.flash('info', 'Account created successfully! Welcome to GovTraq.')
+        req.flash('info', 'Subscription purchased successfully. Your account is now active.')
         res.redirect('/profile')
       })
+    }).catch((e) => {
+      req.flash('error', e.message)
+      res.redirect('/payment/'+id+'?plan='+plan)
     })
-  }
-
-  subscribe () {
-
-  }
-
-  updateSubscription() {
-
-  }
-
-  cancelSubscription() {
-
   }
 }

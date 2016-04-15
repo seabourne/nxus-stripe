@@ -3,7 +3,7 @@
 <div class="form-group">
 <select name="plan" class="form-control">
   <% plans.forEach(function(plan) { %>
-    <option value="<%= plan.stripeId %>" <%= req.subscription.customer.subscriptions.data[0].plan.id == plan.stripeId ? 'selected="true"' : "" %>><%= plan.name %> @ <%= plan.price %></option>
+    <option value="<%= plan.id %>" <%= req.subscription.customer.subscriptions.data[0].plan.id == plan.id ? 'selected="true"' : "" %>><%= plan.name %> @ $<%= plan.amount/100 %>/<%= plan.interval %></option>
   <% }) %>
 </select>
 </div>
