@@ -2,7 +2,7 @@
 * @Author: mike
 * @Date:   2016-04-10 11:33:11
 * @Last Modified 2016-04-16
-* @Last Modified time: 2016-04-16 20:54:03
+* @Last Modified time: 2016-04-16 20:55:49
 */
 
 'use strict';
@@ -82,7 +82,7 @@ export default class Stripe {
   applyCoupon(subscription, coupon) {
     if(!subscription || !coupon) throw new Error('Subscription or coupon not valid')
     let models = {}
-    return this.app.get('storage').getModels('subscription').then((Subscription) => {
+    return this.app.get('storage').getModel('subscription').then((Subscription) => {
       models.Subscription = Subscription
       return this.stripe.customers.updateSubscription(subscription.customer.id, subscription.customer.subscriptions.data[0].id, {
         coupon: coupon
