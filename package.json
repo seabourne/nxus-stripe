@@ -1,6 +1,6 @@
 {
   "name": "nxus-stripe",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Stripe subscription support for Nxus apps.",
   "main": "lib",
   "scripts": {
