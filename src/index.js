@@ -2,7 +2,7 @@
 * @Author: mike
 * @Date:   2016-04-10 11:33:11
 * @Last Modified 2016-04-16
-* @Last Modified time: 2016-04-16 20:32:45
+* @Last Modified time: 2016-04-16 20:46:05
 */
 
 'use strict';
@@ -84,7 +84,6 @@ export default class Stripe {
     return this.stripe.customers.updateSubscription(subscription.customer.id, subscription.customer.subscriptions.data[0].id, {
       coupon: coupon
     }).then((sub) => {
-      let subscription = sub
       subscription.customer.subscriptions.data[0] = sub
       return models.Subscription.update({user: subscription.user}, subscription)
     });
