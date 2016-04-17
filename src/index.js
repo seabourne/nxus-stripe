@@ -1,8 +1,8 @@
 /*
 * @Author: mike
 * @Date:   2016-04-10 11:33:11
-* @Last Modified 2016-04-15
-* @Last Modified time: 2016-04-15 07:18:37
+* @Last Modified 2016-04-16
+* @Last Modified time: 2016-04-16 16:17:49
 */
 
 'use strict';
@@ -30,7 +30,7 @@ export default class Stripe {
     this._setupTemplates()
     this._setupStripe()
 
-    app.get('stripe').use(this)
+    app.get('stripe').use(this).respond('applyCoupon')
   }
 
   _setupTemplates() {
@@ -77,6 +77,17 @@ export default class Stripe {
     router.route("post", "/profile/billing/update/:id", this._billingUpdate.bind(this))
 
     router.route('post', '/stripe/webhook', this._processWebhook.bind(this))
+  }
+
+  applyCoupon(subscription, coupon) {
+    if(!subscription || !coupon) throw new Error('Subscription or coupon not valid')
+    return this.stripe.customers.updateSubscription(subscription.customer.id, subscription.customer.subscriptions.data[0].id, {
+      coupon: coupon
+    }).then((sub) => {
+      let subscription = subscription
+      subscription.customer.subscriptions.data[0] = sub
+      return models.Subscription.update({user: subscription.user}, subscription)
+    });
   }
 
   _processWebhook(req, res) {
