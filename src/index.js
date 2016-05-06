@@ -1,8 +1,8 @@
 /*
 * @Author: mike
 * @Date:   2016-04-10 11:33:11
-* @Last Modified 2016-04-16
-* @Last Modified time: 2016-04-16 20:55:49
+* @Last Modified 2016-05-06
+* @Last Modified time: 2016-05-06 10:49:35
 */
 
 'use strict';
@@ -294,7 +294,7 @@ export default class Stripe {
     }).then(() => {
       return req.login(user, () => {
         req.flash('info', 'Subscription purchased successfully. Your account is now active.')
-        res.redirect('/profile')
+        res.redirect('/profile?action=success&plan='+plan)
       })
     }).catch((e) => {
       req.flash('error', e.message)
