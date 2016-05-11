@@ -1,2 +1,2 @@
-
+<p>You are purchasing the <%= _.findWhere(plans, {id: plan}).name %> plan. Your credit card will be charged $<%= _.findWhere(plans, {id: plan}).amount/100 %>.</p>
 <%- render('stripe-payment-form') %>

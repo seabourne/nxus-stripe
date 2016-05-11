@@ -1,8 +1,8 @@
 /*
 * @Author: mike
 * @Date:   2016-04-10 11:33:11
-* @Last Modified 2016-05-06
-* @Last Modified time: 2016-05-06 10:49:35
+* @Last Modified 2016-05-11
+* @Last Modified time: 2016-05-11 08:33:03
 */
 
 'use strict';
@@ -67,6 +67,7 @@ export default class Stripe {
   _setupRoutes() {
     let router = this.app.get('router')
     router.route("post", "/payment/process/:id", this._process.bind(this))
+    router.replace().route("/payment/success", this._success.bind(this))
     router.route("/payment/:id", this._payment.bind(this))
     router.route("/profile/subscription", this._subscription.bind(this))
     router.route("/profile/subscription/change", this._subscriptionChange.bind(this))
@@ -136,6 +137,10 @@ export default class Stripe {
 
   _billing(req, res) {
     return this.app.get('templater').render('stripe-billing', {title: 'Billing', req, stripe: this.opts}).then(res.send.bind(res))
+  }
+
+  _success(req, res) {
+    return this.app.get('templater').render('stripe-success', {title: 'Thank You', req, stripe: this.opts, siteName: this.app.config.siteName}).then(res.send.bind(res))
   }
 
   _billingUpdate(req, res) {
@@ -247,12 +252,16 @@ export default class Stripe {
     return this.app.get('storage').getModel('user').then((User) => {
       return User.findOne(id)
     }).then((user) => {
+      return [user, this.stripe.plans.list()]
+    }).spread((user, plans) => {
+      plans = plans.data
       if(!user) return res.status(404).send()
       let opts = {
         stripe: this.app.config.stripe,
         req, 
         user,
         plan,
+        plans,
         title: 'Enter Payment Information'
       }
       return this.app.get('templater').render("stripe-payment", opts).then(res.send.bind(res))
@@ -294,7 +303,7 @@ export default class Stripe {
     }).then(() => {
       return req.login(user, () => {
         req.flash('info', 'Subscription purchased successfully. Your account is now active.')
-        res.redirect('/profile?action=success&plan='+plan)
+        res.redirect('/payment/success?action=success&plan='+plan)
       })
     }).catch((e) => {
       req.flash('error', e.message)
